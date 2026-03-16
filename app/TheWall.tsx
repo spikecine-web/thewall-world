@@ -2095,9 +2095,6 @@ export default function TheWall() {
     }
   }, []);
 
-  // Simulation removed — real tiles only
-  }, []);
-
   const add = ({ w, city, co, tier }) => {
     const h = Math.random() * 360;
     if (w.length === 1)
