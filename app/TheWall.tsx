@@ -897,7 +897,6 @@ function InputPanel({ onAdd, onShare, totalWords }) {
       country: co,
       tier: tier.id,
       email: email || null,
-    }]);
     }]).then(function(res) { console.log("SAVE RESULT:", JSON.stringify(res)); });
     if (email && daily) {
       supabase.from("subscribers").insert([{ email: email.trim() }]);
