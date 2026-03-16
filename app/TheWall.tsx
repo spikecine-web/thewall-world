@@ -1993,33 +1993,25 @@ export default function TheWall() {
 
   // Load tiles from database
   useEffect(() => {
-    try {
-      supabase
-        .from("tiles")
-        .select("*")
-        .order("id")
-        .then(function (result) {
-          if (result.data && result.data.length > 0) {
-            var dbTiles = result.data.map(function (t) {
-              return {
-                w: t.words,
-                city: t.city,
-                co: t.country,
-                tier: t.tier,
-                founder: t.founder,
-                name: t.name,
-                color: t.color,
-              };
-            });
-            setTiles(dbTiles);
-          }
-        })
-        .catch(function (e) {
-          console.error("Failed to load tiles:", e);
-        });
-    } catch (e) {
-      console.error(e);
-    }
+    fetch('/api/tile')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data && data.length > 0) {
+          var dbTiles = data.map(function(t) {
+            return {
+              w: t.words,
+              city: t.city,
+              co: t.country,
+              tier: t.tier,
+              founder: t.founder,
+              name: t.name,
+              color: t.color,
+            };
+          });
+          setTiles(dbTiles);
+        }
+      })
+      .catch(function(e) { console.error("Failed to load tiles:", e); });
   }, []);
 
   const add = ({ w, city, co, tier }) => {
