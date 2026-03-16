@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -868,116 +867,44 @@ function InputPanel({ onAdd, onShare, totalWords }) {
   const [last, setLast] = useState(null);
   const [myNumber, setMyNumber] = useState(null);
   const [customAmount, setCustomAmount] = useState(0);
-  const [paypalLoaded, setPaypalLoaded] = useState(false);
   const [paying, setPaying] = useState(false);
+  const [paypalSent, setPaypalSent] = useState(false);
   const [name, setName] = useState("");
-  const paypalBtnRef = useRef(null);
 
   const wc = text.trim().split(/\s+/).filter(Boolean).length;
   const over = tier.words === -1 ? wc > customAmount * 2 : wc > tier.words;
 
-  // Load PayPal SDK once on mount
-  useEffect(() => {
-    try {
-      const id = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID;
-      if (!id || typeof window === "undefined") return;
-      if (document.querySelector("#paypal-sdk")) {
-        setPaypalLoaded(true);
-        return;
-      }
-      const script = document.createElement("script");
-      script.id = "paypal-sdk";
-      script.src = `https://www.paypal.com/sdk/js?client-id=${id}&currency=USD`;
-      script.onload = () => setPaypalLoaded(true);
-      script.onerror = () => console.error("PayPal SDK failed to load");
-      document.body.appendChild(script);
-    } catch (e) {
-      console.error(e);
+  // PayPal.me link approach — simple and reliable
+  const getPaypalPrice = () => {
+    return tier.id === 5 ? customAmount : tier.price;
+  };
+
+  const openPaypal = () => {
+    const price = getPaypalPrice();
+    window.open("https://paypal.me/thewallworld/" + price + "USD", "_blank");
+    setPaypalSent(true);
+  };
+
+  const confirmPayment = () => {
+    var words = text.trim().split(/\s+/).filter(Boolean);
+    var num = totalWords + 1;
+    supabase.from("tiles").insert([{
+      words: words,
+      full_message: words.join(" "),
+      name: name.trim() || null,
+      city: city.trim(),
+      country: co,
+      tier: tier.id,
+      email: email || null,
+    }]);
+    if (email && daily) {
+      supabase.from("subscribers").insert([{ email: email.trim() }]);
     }
-  }, []);
-
-  // Render PayPal button when conditions are right
-  useEffect(() => {
-    if (step !== 2) return;
-    if (!paypalLoaded) return;
-    if (!city.trim() || !co) return;
-    if (!paypalBtnRef.current) return;
-    if (typeof window === "undefined" || !(window as any).paypal) return;
-    if (tier.id === 0) return; // free tier, no payment
-
-    const price = tier.id === 5 ? customAmount : tier.price;
-    if (!price || price <= 0) return;
-
-    // Clear previous button
-    paypalBtnRef.current.innerHTML = "";
-
-    try {
-      (window as any).paypal.Buttons({
-          style: {
-            layout: "horizontal",
-            color: "blue",
-            shape: "rect",
-            label: "pay",
-            height: 45,
-          },
-          createOrder: function (data, actions) {
-            return actions.order.create({
-              purchase_units: [
-                {
-                  amount: { value: String(price) },
-                  description: "The Worlds Wall - " + tier.name,
-                },
-              ],
-            });
-          },
-          onApprove: function (data, actions) {
-            console.log('PAYPAL APPROVED', data.orderID);
-            var words = text.trim().split(/\s+/).filter(Boolean);
-            var num = totalWords + 1;
-            supabase.from("tiles").insert([
-              {
-                words: words,
-                full_message: words.join(" "),
-                name: name.trim() || null,
-                city: city.trim(),
-                country: co,
-                tier: tier.id,
-                email: email || null,
-                paypal_transaction_id: data.orderID,
-              },
-            ]);
-            onAdd({
-              w: words,
-              name: name.trim() || null,
-              city: city.trim(),
-              co: co,
-              tier: tier.id,
-              num: num,
-            });
-            setLast({
-              w: words,
-              city: city.trim(),
-              co: co,
-              tier: tier.id,
-              num: num,
-            });
-            setMyNumber(num);
-            setStep(3);
-            return actions.order.capture();
-          },
-          onError: function (err) {
-            console.error("PayPal error:", err);
-            setPaying(false);
-          },
-        })
-        .render(paypalBtnRef.current)
-        .catch(function (e) {
-          console.error(e);
-        });
-    } catch (e) {
-      console.error(e);
-    }
-  }, [step, paypalLoaded, city, co, tier.id, tier.price, customAmount]);
+    onAdd({ w: words, name: name.trim() || null, city: city.trim(), co: co, tier: tier.id, num: num });
+    setLast({ w: words, city: city.trim(), co: co, tier: tier.id, num: num });
+    setMyNumber(num);
+    setStep(3);
+  };
 
   const next = () => {
     const words = text.trim().split(/\s+/).filter(Boolean);
@@ -1016,6 +943,7 @@ function InputPanel({ onAdd, onShare, totalWords }) {
     setTier(TIERS[0]);
     setCustomAmount(0);
     setPaying(false);
+    setPaypalSent(false);
   };
 
   const inp = {
@@ -1835,46 +1763,40 @@ function InputPanel({ onAdd, onShare, totalWords }) {
               ←
             </button>
             <div style={{ flex: 1, minHeight: 45 }}>
-              {paying && (
-                <div
-                  style={{
-                    textAlign: "center",
-                    padding: "14px",
-                    color: "#4ECDC4",
-                    fontSize: 14,
-                    fontFamily: "'Quicksand',sans-serif",
-                    animation: "pulse 1.5s infinite",
-                  }}
-                >
-                  Processing payment...
+              {!paypalSent && city.trim() && co && (
+                <button onClick={openPaypal} style={{
+                  width: "100%", background: "#0070ba", border: "none", borderRadius: 10,
+                  padding: "14px", color: "#fff", fontSize: 15, fontWeight: 700,
+                  cursor: "pointer", fontFamily: "'Nunito',sans-serif",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                }}>
+                  <span style={{fontStyle:"italic",fontWeight:800}}>Pay</span>
+                  <span style={{fontStyle:"italic",fontWeight:800,color:"#00aff0"}}>Pal</span>
+                  <span style={{opacity:0.7}}>— ${tier.id === 5 ? customAmount : tier.price}</span>
+                </button>
+              )}
+              {paypalSent && (
+                <div style={{textAlign:"center"}}>
+                  <div style={{fontSize:12,color:"#FFE66D",fontFamily:"'Quicksand',sans-serif",marginBottom:10}}>
+                    Paid on PayPal? Click below to place your words!
+                  </div>
+                  <button onClick={confirmPayment} style={{
+                    width: "100%", background: "linear-gradient(135deg,#4ECDC4,#2ecc71)", border: "none",
+                    borderRadius: 10, padding: "14px", color: "#fff", fontSize: 15, fontWeight: 700,
+                    cursor: "pointer", fontFamily: "'Nunito',sans-serif",
+                  }}>
+                    I've paid — place my words! ✨
+                  </button>
+                  <button onClick={openPaypal} style={{
+                    marginTop:8, background:"none", border:"none", color:"rgba(255,255,255,0.5)",
+                    fontSize:11, cursor:"pointer", fontFamily:"'Quicksand',sans-serif", textDecoration:"underline",
+                  }}>
+                    Open PayPal again
+                  </button>
                 </div>
               )}
-              {!paying && city.trim() && co && paypalLoaded && (
-                <div ref={paypalBtnRef}></div>
-              )}
-              {!paying && city.trim() && co && !paypalLoaded && (
-                <div
-                  style={{
-                    textAlign: "center",
-                    padding: "14px",
-                    color: "rgba(255,255,255,0.5)",
-                    fontSize: 13,
-                    fontFamily: "'Quicksand',sans-serif",
-                  }}
-                >
-                  Loading payment...
-                </div>
-              )}
-              {!paying && (!city.trim() || !co) && (
-                <div
-                  style={{
-                    textAlign: "center",
-                    padding: "14px",
-                    color: "rgba(255,255,255,0.4)",
-                    fontSize: 13,
-                    fontFamily: "'Quicksand',sans-serif",
-                  }}
-                >
+              {!paypalSent && (!city.trim() || !co) && (
+                <div style={{ textAlign: "center", padding: "14px", color: "rgba(255,255,255,0.4)", fontSize: 13, fontFamily: "'Quicksand',sans-serif" }}>
                   Fill in your city and country to pay
                 </div>
               )}
