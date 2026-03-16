@@ -887,21 +887,22 @@ function InputPanel({ onAdd, onShare, totalWords }) {
     setPaypalSent(true);
   };
 
-  const confirmPayment = () => {
+const confirmPayment = () => {
     var words = text.trim().split(/\s+/).filter(Boolean);
     var num = totalWords + 1;
-    supabase.from("tiles").insert([{
-      words: words,
-      full_message: words.join(" "),
-      name: name.trim() || null,
-      city: city.trim(),
-      country: co,
-      tier: tier.id,
-      email: email || null,
-    }]).then(function(res) { console.log("SAVE RESULT:", JSON.stringify(res)); });
-    if (email && daily) {
-      supabase.from("subscribers").insert([{ email: email.trim() }]);
-    }
+    fetch('/api/tile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        words: words,
+        full_message: words.join(" "),
+        name: name.trim() || null,
+        city: city.trim(),
+        country: co,
+        tier: tier.id,
+        email: email || null,
+      })
+    }).then(function(r) { return r.json(); }).then(function(d) { console.log("SAVED:", d); });
     onAdd({ w: words, name: name.trim() || null, city: city.trim(), co: co, tier: tier.id, num: num });
     setLast({ w: words, city: city.trim(), co: co, tier: tier.id, num: num });
     setMyNumber(num);
@@ -924,12 +925,14 @@ function InputPanel({ onAdd, onShare, totalWords }) {
     setStep(2);
   };
 
-  const submitFree = () => {
+ const submitFree = async () => {
     if (!email.trim()) return;
-    supabase.from("subscribers").insert([{ email: email.trim() }]);
-    setLast(null);
-    setMyNumber(null);
-    setStep(3);
+    fetch('/api/tile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email.trim(), is_subscriber: true })
+    });
+    setLast(null); setMyNumber(null); setStep(3);
   };
 
   const reset = () => {
