@@ -901,7 +901,7 @@ function InputPanel({ onAdd, onShare, totalWords }) {
     if (!paypalLoaded) return;
     if (!city.trim() || !co) return;
     if (!paypalBtnRef.current) return;
-    if (typeof window === "undefined" || !window.paypal) return;
+    if (typeof window === "undefined" || !(window as any).paypal) return;
     if (tier.id === 0) return; // free tier, no payment
 
     const price = tier.id === 5 ? customAmount : tier.price;
@@ -911,8 +911,7 @@ function InputPanel({ onAdd, onShare, totalWords }) {
     paypalBtnRef.current.innerHTML = "";
 
     try {
-      window.paypal
-        .Buttons({
+      (window as any).paypal.Buttons({
           style: {
             layout: "horizontal",
             color: "blue",
