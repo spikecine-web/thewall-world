@@ -2211,7 +2211,7 @@ export default function TheWall() {
             }}
           >
             We're building a globe made of{" "}
-            <strong>5 million words</strong> from from
+            <strong>5 million words</strong> from
             people all over the planet. You choose a word, a name, or a message
             — it becomes a tile on the globe forever. When we reach 5 million,
             the digital globe becomes a{" "}
