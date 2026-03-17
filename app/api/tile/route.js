@@ -13,6 +13,11 @@ export async function POST(request) {
       if (error) return Response.json({ error: error.message }, { status: 400 });
       return Response.json({ success: true });
     }
+    if (body.is_bravo) {
+      await supabase.rpc('increment_bravos');
+      const { data } = await supabase.from('bravos').select('count').eq('id', 1).single();
+      return Response.json({ count: data ? data.count : 0 });
+    }
     const { data, error } = await supabase.from('tiles').insert([body]).select();
     if (error) return Response.json({ error: error.message }, { status: 400 });
     return Response.json({ success: true, data });
@@ -21,8 +26,13 @@ export async function POST(request) {
   }
 }
 
-export async function GET() {
+export async function GET(request) {
   try {
+    const url = new URL(request.url);
+    if (url.searchParams.get('bravos') === 'true') {
+      const { data } = await supabase.from('bravos').select('count').eq('id', 1).single();
+      return Response.json({ count: data ? data.count : 0 });
+    }
     const { data, error } = await supabase.from('tiles').select('*').order('id');
     if (error) return Response.json({ error: error.message }, { status: 400 });
     return Response.json(data);
