@@ -903,41 +903,29 @@ function InputPanel({ onAdd, onShare, totalWords }) {
           purchase_units: [{ amount: { value: String(price) }, description: 'The Worlds Wall - ' + tier.name }]
         });
       },
-      onApprove: function(data, actions) {
+onApprove: function(data) {
         setPaying(true);
-        return actions.order.capture().then(function(details) {
-          var words = text.trim().split(/\s+/).filter(Boolean);
-          var num = totalWords + 1;
-          fetch('/api/tile', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              words: words,
-              full_message: words.join(' '),
-              name: name.trim() || null,
-              city: city.trim(),
-              country: co,
-              tier: tier.id,
-              email: email || null,
-              paypal_transaction_id: details.id,
-            })
-          });
-          if (email && daily) {
-            fetch('/api/tile', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ is_subscriber: true, email: email.trim() })
-            });
-          }
-          onAdd({ w: words, name: name.trim() || null, city: city.trim(), co: co, tier: tier.id, num: num });
-          setLast({ w: words, city: city.trim(), co: co, tier: tier.id, num: num });
-          setMyNumber(num);
-          setPaying(false);
-          setStep(3);
-        }).catch(function(e) {
-          console.error('Capture error:', e);
-          setPaying(false);
+        var words = text.trim().split(/\s+/).filter(Boolean);
+        var num = totalWords + 1;
+        fetch('/api/tile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            words: words,
+            full_message: words.join(' '),
+            name: name.trim() || null,
+            city: city.trim(),
+            country: co,
+            tier: tier.id,
+            email: email || null,
+            paypal_transaction_id: data.orderID,
+          })
         });
+        onAdd({ w: words, name: name.trim() || null, city: city.trim(), co: co, tier: tier.id, num: num });
+        setLast({ w: words, city: city.trim(), co: co, tier: tier.id, num: num });
+        setMyNumber(num);
+        setPaying(false);
+        setStep(3);
       },
       onError: function(err) { console.error('PayPal error:', err); setPaying(false); }
     }).render(paypalBtnRef.current);
