@@ -1992,16 +1992,19 @@ export default function TheWall() {
   const [hov, setHov] = useState(null);
   const [view, setView] = useState("globe");
   const [cc, setCc] = useState(0);
-  const [bravos, setBravos] = useState(12847);
+  const [bravos, setBravos] = useState(0);
   const [bravoPop, setBravoPop] = useState(false);
   const [search, setSearch] = useState("");
   const [searchActive, setSearchActive] = useState(false);
-  const BASE_COUNT = 7522; // wall launched with this many words
+  const BASE_COUNT = 0; // wall launched with this many words
   const totalWords = BASE_COUNT + tiles.length;
 
   useEffect(() => {
     setCc(new Set(tiles.map((t) => t.co)).size);
   }, [tiles]);
+   useEffect(function() {
+    fetch('/api/tile?bravos=true').then(function(r){return r.json();}).then(function(d){ if(d.count) setBravos(d.count); });
+  }, []);
 
   // Load tiles from database
   useEffect(() => {
@@ -2677,6 +2680,7 @@ export default function TheWall() {
         <button
           onClick={() => {
             setBravos((b) => b + 1);
+             fetch('/api/tile', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({is_bravo:true})});
             setBravoPop(true);
             setTimeout(() => setBravoPop(false), 600);
           }}
