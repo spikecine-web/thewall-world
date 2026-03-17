@@ -1,10 +1,8 @@
-// @ts-nocheck
 "use client";
 
 import { useState, useEffect, useRef } from "react";
 import * as THREE from "three";
-import { createClient } from "@supabase/supabase-js";
-const supabase = createClient("https://iiccldgmzgynyufjlhhw.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlpY2NsZGdtemd5bnl1ZmpsaGh3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyNjM3NzcsImV4cCI6MjA4ODgzOTc3N30.YtRXQ9MBoqCjmyUl412C5mfeqhFByNmWOKHpr_2GIkQ");
+import { supabase } from "../lib/supabase";
 
 /* ═══════════════════════════════════════════════════════
    thewall.world — The World's Wall
@@ -870,44 +868,79 @@ function InputPanel({ onAdd, onShare, totalWords }) {
   const [myNumber, setMyNumber] = useState(null);
   const [customAmount, setCustomAmount] = useState(0);
   const [paying, setPaying] = useState(false);
-  const [paypalSent, setPaypalSent] = useState(false);
+  const [paypalLoaded, setPaypalLoaded] = useState(false);
   const [name, setName] = useState("");
+  const paypalBtnRef = useRef(null);
 
   const wc = text.trim().split(/\s+/).filter(Boolean).length;
   const over = tier.words === -1 ? wc > customAmount * 2 : wc > tier.words;
 
-  // PayPal.me link approach — simple and reliable
-  const getPaypalPrice = () => {
-    return tier.id === 5 ? customAmount : tier.price;
-  };
+  // Load PayPal SDK
+  useEffect(function() {
+    var id = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID;
+    if (!id || typeof window === 'undefined') return;
+    if (document.querySelector('#paypal-sdk')) { setPaypalLoaded(true); return; }
+    var script = document.createElement('script');
+    script.id = 'paypal-sdk';
+    script.src = 'https://www.paypal.com/sdk/js?client-id=' + id + '&currency=USD';
+    script.onload = function() { setPaypalLoaded(true); };
+    document.body.appendChild(script);
+  }, []);
 
-  const openPaypal = () => {
-    const price = getPaypalPrice();
-    window.open("https://paypal.me/thewallworld/" + price + "USD", "_blank");
-    setPaypalSent(true);
-  };
-
-const confirmPayment = () => {
-    var words = text.trim().split(/\s+/).filter(Boolean);
-    var num = totalWords + 1;
-    fetch('/api/tile', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        words: words,
-        full_message: words.join(" "),
-        name: name.trim() || null,
-        city: city.trim(),
-        country: co,
-        tier: tier.id,
-        email: email || null,
-      })
-    }).then(function(r) { return r.json(); }).then(function(d) { console.log("SAVED:", d); });
-    onAdd({ w: words, name: name.trim() || null, city: city.trim(), co: co, tier: tier.id, num: num });
-    setLast({ w: words, city: city.trim(), co: co, tier: tier.id, num: num });
-    setMyNumber(num);
-    setStep(3);
-  };
+  // Render PayPal button
+  useEffect(function() {
+    if (step !== 2 || !paypalLoaded || !city.trim() || !co || !paypalBtnRef.current) return;
+    if (typeof window === 'undefined' || !window.paypal) return;
+    if (tier.id === 0) return;
+    var price = tier.id === 5 ? customAmount : tier.price;
+    if (!price || price <= 0) return;
+    paypalBtnRef.current.innerHTML = '';
+    window.paypal.Buttons({
+      style: { layout: 'horizontal', color: 'blue', shape: 'rect', label: 'pay', height: 45 },
+      createOrder: function(data, actions) {
+        return actions.order.create({
+          purchase_units: [{ amount: { value: String(price) }, description: 'The Worlds Wall - ' + tier.name }]
+        });
+      },
+      onApprove: function(data, actions) {
+        setPaying(true);
+        return actions.order.capture().then(function(details) {
+          var words = text.trim().split(/\s+/).filter(Boolean);
+          var num = totalWords + 1;
+          fetch('/api/tile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              words: words,
+              full_message: words.join(' '),
+              name: name.trim() || null,
+              city: city.trim(),
+              country: co,
+              tier: tier.id,
+              email: email || null,
+              paypal_transaction_id: details.id,
+            })
+          });
+          if (email && daily) {
+            fetch('/api/tile', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ is_subscriber: true, email: email.trim() })
+            });
+          }
+          onAdd({ w: words, name: name.trim() || null, city: city.trim(), co: co, tier: tier.id, num: num });
+          setLast({ w: words, city: city.trim(), co: co, tier: tier.id, num: num });
+          setMyNumber(num);
+          setPaying(false);
+          setStep(3);
+        }).catch(function(e) {
+          console.error('Capture error:', e);
+          setPaying(false);
+        });
+      },
+      onError: function(err) { console.error('PayPal error:', err); setPaying(false); }
+    }).render(paypalBtnRef.current);
+  }, [step, paypalLoaded, city, co, tier.id, tier.price, customAmount]);
 
   const next = () => {
     const words = text.trim().split(/\s+/).filter(Boolean);
@@ -925,14 +958,12 @@ const confirmPayment = () => {
     setStep(2);
   };
 
- const submitFree = async () => {
+  const submitFree = () => {
     if (!email.trim()) return;
-    fetch('/api/tile', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: email.trim(), is_subscriber: true })
-    });
-    setLast(null); setMyNumber(null); setStep(3);
+    supabase.from("subscribers").insert([{ email: email.trim() }]);
+    setLast(null);
+    setMyNumber(null);
+    setStep(3);
   };
 
   const reset = () => {
@@ -948,7 +979,6 @@ const confirmPayment = () => {
     setTier(TIERS[0]);
     setCustomAmount(0);
     setPaying(false);
-    setPaypalSent(false);
   };
 
   const inp = {
@@ -1768,39 +1798,20 @@ const confirmPayment = () => {
               ←
             </button>
             <div style={{ flex: 1, minHeight: 45 }}>
-              {!paypalSent && city.trim() && co && (
-                <button onClick={openPaypal} style={{
-                  width: "100%", background: "#0070ba", border: "none", borderRadius: 10,
-                  padding: "14px", color: "#fff", fontSize: 15, fontWeight: 700,
-                  cursor: "pointer", fontFamily: "'Nunito',sans-serif",
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                }}>
-                  <span style={{fontStyle:"italic",fontWeight:800}}>Pay</span>
-                  <span style={{fontStyle:"italic",fontWeight:800,color:"#00aff0"}}>Pal</span>
-                  <span style={{opacity:0.7}}>— ${tier.id === 5 ? customAmount : tier.price}</span>
-                </button>
-              )}
-              {paypalSent && (
-                <div style={{textAlign:"center"}}>
-                  <div style={{fontSize:12,color:"#FFE66D",fontFamily:"'Quicksand',sans-serif",marginBottom:10}}>
-                    Paid on PayPal? Click below to place your words!
-                  </div>
-                  <button onClick={confirmPayment} style={{
-                    width: "100%", background: "linear-gradient(135deg,#4ECDC4,#2ecc71)", border: "none",
-                    borderRadius: 10, padding: "14px", color: "#fff", fontSize: 15, fontWeight: 700,
-                    cursor: "pointer", fontFamily: "'Nunito',sans-serif",
-                  }}>
-                    I've paid — place my words! ✨
-                  </button>
-                  <button onClick={openPaypal} style={{
-                    marginTop:8, background:"none", border:"none", color:"rgba(255,255,255,0.5)",
-                    fontSize:11, cursor:"pointer", fontFamily:"'Quicksand',sans-serif", textDecoration:"underline",
-                  }}>
-                    Open PayPal again
-                  </button>
+              {paying && (
+                <div style={{ textAlign: "center", padding: "14px", color: "#4ECDC4", fontSize: 14, fontFamily: "'Quicksand',sans-serif", animation: "pulse 1.5s infinite" }}>
+                  Processing payment...
                 </div>
               )}
-              {!paypalSent && (!city.trim() || !co) && (
+              {!paying && city.trim() && co && paypalLoaded && (
+                <div ref={paypalBtnRef}></div>
+              )}
+              {!paying && city.trim() && co && !paypalLoaded && (
+                <div style={{ textAlign: "center", padding: "14px", color: "rgba(255,255,255,0.5)", fontSize: 13, fontFamily: "'Quicksand',sans-serif" }}>
+                  Loading payment...
+                </div>
+              )}
+              {!paying && (!city.trim() || !co) && (
                 <div style={{ textAlign: "center", padding: "14px", color: "rgba(255,255,255,0.4)", fontSize: 13, fontFamily: "'Quicksand',sans-serif" }}>
                   Fill in your city and country to pay
                 </div>
@@ -1980,14 +1991,11 @@ export default function TheWall() {
   const [hov, setHov] = useState(null);
   const [view, setView] = useState("globe");
   const [cc, setCc] = useState(0);
-  const [bravos, setBravos] = useState(0);
+  const [bravos, setBravos] = useState(12847);
   const [bravoPop, setBravoPop] = useState(false);
-   useEffect(() => {
-    fetch('/api/tile?bravos=true').then(r=>r.json()).then(d=>{ if(d.count) setBravos(d.count); });
-  }, []);
   const [search, setSearch] = useState("");
   const [searchActive, setSearchActive] = useState(false);
-  const BASE_COUNT = 0; // wall launched with this many words
+  const BASE_COUNT = 7522; // wall launched with this many words
   const totalWords = BASE_COUNT + tiles.length;
 
   useEffect(() => {
@@ -1996,25 +2004,33 @@ export default function TheWall() {
 
   // Load tiles from database
   useEffect(() => {
-    fetch('/api/tile')
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        if (data && data.length > 0) {
-          var dbTiles = data.map(function(t) {
-            return {
-              w: t.words,
-              city: t.city,
-              co: t.country,
-              tier: t.tier,
-              founder: t.founder,
-              name: t.name,
-              color: t.color,
-            };
-          });
-          setTiles(dbTiles);
-        }
-      })
-      .catch(function(e) { console.error("Failed to load tiles:", e); });
+    try {
+      supabase
+        .from("tiles")
+        .select("*")
+        .order("id")
+        .then(function (result) {
+          if (result.data && result.data.length > 0) {
+            var dbTiles = result.data.map(function (t) {
+              return {
+                w: t.words,
+                city: t.city,
+                co: t.country,
+                tier: t.tier,
+                founder: t.founder,
+                name: t.name,
+                color: t.color,
+              };
+            });
+            setTiles(dbTiles);
+          }
+        })
+        .catch(function (e) {
+          console.error("Failed to load tiles:", e);
+        });
+    } catch (e) {
+      console.error(e);
+    }
   }, []);
 
   const add = ({ w, city, co, tier }) => {
@@ -2660,8 +2676,7 @@ export default function TheWall() {
         <button
           onClick={() => {
             setBravos((b) => b + 1);
-setBravoPop(true);
-fetch('/api/tile', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({is_bravo:true})});
+            setBravoPop(true);
             setTimeout(() => setBravoPop(false), 600);
           }}
           style={{
