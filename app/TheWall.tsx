@@ -1358,7 +1358,7 @@ function InputPanel({ onAdd, onShare, totalWords }) {
                     setErr("");
                   }}
                   onKeyDown={(e) => e.key === "Enter" && next()}
-                  placeholder="Your word or name"
+                  placeholder="Your word"
                   style={{
                     ...inp,
                     fontSize: 20,
