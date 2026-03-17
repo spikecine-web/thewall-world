@@ -1980,8 +1980,11 @@ export default function TheWall() {
   const [hov, setHov] = useState(null);
   const [view, setView] = useState("globe");
   const [cc, setCc] = useState(0);
-  const [bravos, setBravos] = useState(12847);
+  const [bravos, setBravos] = useState(0);
   const [bravoPop, setBravoPop] = useState(false);
+   useEffect(() => {
+    fetch('/api/tile?bravos=true').then(r=>r.json()).then(d=>{ if(d.count) setBravos(d.count); });
+  }, []);
   const [search, setSearch] = useState("");
   const [searchActive, setSearchActive] = useState(false);
   const BASE_COUNT = 0; // wall launched with this many words
@@ -2657,7 +2660,8 @@ export default function TheWall() {
         <button
           onClick={() => {
             setBravos((b) => b + 1);
-            setBravoPop(true);
+setBravoPop(true);
+fetch('/api/tile', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({is_bravo:true})});
             setTimeout(() => setBravoPop(false), 600);
           }}
           style={{
