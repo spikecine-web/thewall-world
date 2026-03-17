@@ -1992,7 +1992,7 @@ export default function TheWall() {
   const [sel, setSel] = useState(null);
   const [selI, setSelI] = useState(null);
   const [hov, setHov] = useState(null);
-  const [view, setView] = useState("globe");
+  const [view, setView] = useState("wall");
   const [cc, setCc] = useState(0);
   const [bravos, setBravos] = useState(0);
   const [bravoPop, setBravoPop] = useState(false);
