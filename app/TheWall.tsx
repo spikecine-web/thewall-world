@@ -1984,7 +1984,7 @@ export default function TheWall() {
   const [bravoPop, setBravoPop] = useState(false);
   const [search, setSearch] = useState("");
   const [searchActive, setSearchActive] = useState(false);
-  const BASE_COUNT = 7522; // wall launched with this many words
+  const BASE_COUNT = 0; // wall launched with this many words
   const totalWords = BASE_COUNT + tiles.length;
 
   useEffect(() => {
